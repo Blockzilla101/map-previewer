@@ -1,0 +1,45 @@
+apply plugin: 'java'
+apply plugin: 'maven'
+
+project.ext.mainClassName = "maphandler.MapHandler"
+sourceCompatibility = 1.8
+version = '1.0'
+
+sourceSets.main.java.srcDirs = ["src/"]
+allprojects{
+    repositories{
+        mavenLocal()
+        mavenCentral()
+        maven{ url "https://oss.sonatype.org/content/repositories/snapshots/" }
+        maven{ url "https://oss.sonatype.org/content/repositories/releases/" }
+        maven{ url "https://jitpack.io" }
+        jcenter()
+    }
+}
+
+ext{
+    mindustryVersion = 'v104.6'
+}
+
+task run(dependsOn: classes, type: JavaExec){
+    main = project.mainClassName
+    classpath = sourceSets.main.runtimeClasspath
+    standardInput = System.in
+}
+
+task dist(type: Jar){
+    from files(sourceSets.main.output.classesDirs)
+    from files(sourceSets.main.output.resourcesDir)
+    from {configurations.runtimeClasspath.collect{ it.isDirectory() || !it.name.endsWithAny(".zip", ".jar") ? it : zipTree(it) }}
+
+    archiveFileName = "handler.jar"
+
+    manifest{
+        attributes 'Main-Class': project.mainClassName
+    }
+}
+
+dependencies{
+    compile "com.github.Anuken.Arc:arc-core:$mindustryVersion"
+    compile "com.github.Anuken.Mindustry:core:$mindustryVersion"
+}
