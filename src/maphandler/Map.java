@@ -13,6 +13,7 @@ import java.io.DataInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URL;
 import java.util.Arrays;
 import java.util.zip.InflaterInputStream;
 import javax.imageio.ImageIO;
@@ -128,9 +129,8 @@ public class Map {
     }
   
     void doRest() {
-        String assets = "mindustry_assets/";
         try {
-            BufferedImage image = ImageIO.read(new File(assets + "sprites/block_colors.png"));
+            BufferedImage image = ImageIO.read(getClass().getClassLoader().getResource("sprites/block_colors.png"));
       
             for (Block block : content.blocks()) {
                 block.color.argb8888(image.getRGB(block.id, 0));

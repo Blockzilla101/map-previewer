@@ -1,5 +1,5 @@
-.gradle
-build
-.idea
-*.msav
-*.png
+/.gradle
+/build
+/.idea
+/*.msav
+/*.png
