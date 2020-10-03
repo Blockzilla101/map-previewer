@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+
+./gradlew dist --no-daemon
+
+scp ./build/libs/handler.jar root@mindustry.nydus.app:/root/Botzilla/handler.jar
+cp  ./build/libs/handler.jar ../Botzilla/handler.jar
