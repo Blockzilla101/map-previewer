@@ -170,11 +170,9 @@ public abstract class SaveVersion extends mindustry.io.SaveVersion {
 
         this.lastReadBuild = map.getInt("build", -1);
     
-        context.name = map.get("name", "Unknown");
-        context.author = map.get("author", "Unknown");
-        context.description = map.get("description", "None");
-
-        if (context.description.trim().isEmpty()) context.description = "None";
+        context.name = map.get("name", "");
+        context.author = map.get("author", "");
+        context.description = map.get("description", "");
     
         context.build = this.lastReadBuild;
     }
