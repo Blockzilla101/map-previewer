@@ -10,15 +10,26 @@ public class MapHandler {
             System.out.println("A map file needs to be specified");
             System.exit(1);
         }
-    
+
         try {
             String path = args[0];
+            boolean makeScreenshot = true;
+            if (args.length >= 2) {
+                String arg = args[1];
+                if (arg.equals("true") || arg.equals("1")) {
+                    makeScreenshot = true;
+                } else if (arg.equals("false") || arg.equals("0")) {
+                    makeScreenshot = false;
+                } else {
+                    System.out.println("Ignoring 2nd argument");
+                }
+            }
 
             System.out.println("Reading save " + path);
             long start = System.currentTimeMillis();
 
             Map map = new Map(path);
-            ImageIO.write(map.image, "png", new File(path.replaceAll("\\.msav$", ".png")));
+            if (makeScreenshot) ImageIO.write(map.image, "png", new File(path.replaceAll("\\.msav$", ".png")));
 
             long end = System.currentTimeMillis();
 
@@ -29,7 +40,7 @@ public class MapHandler {
 
                 System.out.println(">" + key + "=" + val);
             }
-      
+
             System.out.println();
             long elapsed = end - start;
             System.out.printf("Took %d.%ds%n",
