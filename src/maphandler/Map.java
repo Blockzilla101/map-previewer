@@ -1,32 +1,28 @@
 package maphandler;
 
-import arc.*;
 import arc.files.*;
 import arc.graphics.Color;
 import arc.graphics.*;
 import arc.graphics.Pixmap.*;
-import arc.graphics.g2d.*;
 import arc.graphics.g2d.TextureAtlas.*;
-import arc.graphics.g2d.TextureAtlas.TextureAtlasData.*;
-import arc.math.*;
 import arc.struct.*;
 import arc.util.io.*;
-import arc.util.serialization.*;
 import mindustry.*;
 import mindustry.content.*;
 import mindustry.core.*;
 import mindustry.ctype.*;
-import mindustry.entities.units.*;
 import mindustry.game.*;
+import mindustry.gen.EntityMapping;
+import mindustry.gen.Entityc;
 import mindustry.io.*;
 import mindustry.world.*;
 import mindustry.world.blocks.environment.*;
 
 import javax.imageio.*;
-import java.awt.*;
-import java.awt.geom.*;
 import java.awt.image.*;
 import java.io.*;
+import java.util.Arrays;
+import java.util.Objects;
 import java.util.zip.*;
 
 import static mindustry.Vars.*;
@@ -34,22 +30,21 @@ import static mindustry.Vars.*;
 public class Map {
     private boolean inited = false;
 
-    public static final byte[] mapHeader = {77, 83, 65, 86};
-    public static final String schemHeader = "bXNjaAB";
-
     public String name, author, description;
+    public int width, height;
+
+    public Seq<String> mods;
+
+    public GameState state;
+    public int lastReadBuild;
+
     public ObjectMap<String, String> tags = new ObjectMap<>();
-    public ObjectMap<String, String> stuffs = new ObjectMap<>();
     public BufferedImage image;
 
     Color co = new Color();
 
-    public Map() {
-        if (!inited) init();
-    }
-
     public Map(String path) throws IOException {
-        if (!Fi.get(path).exists()) throw new IOException("Map doesnt exist");
+        if (!Fi.get(path).exists()) throw new IOException("Map doesn't exist");
         try(InputStream ifs = new InflaterInputStream(Fi.get(path).read()); CounterInputStream counter = new CounterInputStream(ifs); DataInputStream stream = new DataInputStream(counter)){
             if (!inited) init();
 
@@ -61,18 +56,34 @@ public class Map {
 
             StringMap meta = metaOut[0];
 
-            name = meta.get("name", "Unknown");
-            author = meta.get("author");
-            description = meta.get("description");
-            tags = meta;
+            name = meta.get("name", "");
+            author = meta.get("author", "");
+            description = meta.get("description", "");
 
-            int width = meta.getInt("width"), height = meta.getInt("height");
+            state = new GameState();
+
+            state.wave = meta.getInt("wave");
+            state.wavetime = meta.getFloat("wavetime", state.rules.waveSpacing);
+            state.stats = JsonIO.read(GameStats.class, meta.get("stats", "{}"));
+            state.rules = JsonIO.read(Rules.class, meta.get("rules", "{}"));
+            if(this.state.rules.spawns.isEmpty()) state.rules.spawns = waves.get();
+            lastReadBuild = meta.getInt("build", -1);
+
+            mods = JsonIO.read(Seq.class, meta.get("mods", "[]"));
+
+            width = meta.getInt("width");
+            height = meta.getInt("height");
 
             var floors = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
             var walls = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
             var fgraphics = floors.createGraphics();
             var jcolor = new java.awt.Color(0, 0, 0, 64);
             int black = 255;
+
+            tags.put("playableTeams", state.rules.defaultTeam.toString());
+            tags.put("saved", meta.get("saved"));
+            tags.put("spawnTeam", state.rules.waveTeam.toString());
+
             CachedTile tile = new CachedTile(){
                 @Override
                 public void setBlock(Block type){
@@ -100,6 +111,16 @@ public class Map {
 
                 @Override
                 public void onReadBuilding(){
+                    if (tile.block() == Blocks.coreShard || tile.block() == Blocks.coreFoundation || tile.block() == Blocks.coreNucleus) {
+                        if (!tags.get("cores", "").contains(tile.team().toString())) tags.put("cores", getPrettyValue(tags.get("cores", ""), tile.team().toString()));
+
+                    } else if (tile.block() == Blocks.repairPoint) {
+                        if (!tags.get("playableTeams", "").contains(tile.team().toString())) tags.put("playableTeams", getPrettyValue(tags.get("playableTeams", ""), tile.team().toString()));
+
+                    } else if (tile.block() == Blocks.itemSource || tile.block() == Blocks.liquidSource || tile.block() == Blocks.itemVoid || tile.block() == Blocks.liquidVoid) {
+                        if (!tags.get("sandboxBlockTeams", "").contains(tile.team().toString())) tags.put("sandboxBlockTeams", getPrettyValue(tags.get("sandboxBlockTeams", ""), tile.team().toString()));
+                    }
+
                     //read team colors
                     if(tile.build != null){
                         int c = tile.build.team.color.argb8888();
@@ -129,6 +150,10 @@ public class Map {
                     }else{
                         floors.setRGB(x, floors.getHeight() - 1 - y, conv(MapIO.colorFor(Blocks.air, content.block(floorID), Blocks.air, Team.derelict)));
                     }
+
+                    if (content.block(overlayID) == Blocks.spawn) {
+                        tags.put("hasSpawns", "yes");
+                    }
                     return tile;
                 }
             }));
@@ -137,6 +162,27 @@ public class Map {
             fgraphics.dispose();
 
             image = floors;
+
+            tags.put("cores", tags.get("cores", "None"));
+            tags.put("hasSpawns", tags.get("hasSpawns", "no"));
+            tags.put("sandboxBlockTeams", tags.get("sandboxBlockTeams", "None"));
+
+            tags.put("type", "unknown");
+
+            String[] cores = tags.get("cores").split(", ");
+            String spawns = tags.get("hasSpawns");
+            String[] playableTeams = tags.get("playableTeams").split(", ");
+            String[] sandboxBlockTeams = tags.get("sandboxBlockTeams").split(", ");
+
+            if (overlaps(playableTeams, sandboxBlockTeams) || this.state.rules.infiniteResources) {
+                tags.put("type", "sandbox");
+            } else if (!cores[0].equals("None") && cores.length == playableTeams.length && spawns.equals("no") && cores.length != 1) {
+                tags.put("type", "pvp");
+            } else if (!cores[0].equals("None") && cores.length > 1 && playableTeams.length == 1) {
+                tags.put("type", "attack");
+            } else if (!cores[0].equals("None") && !spawns.equals("yes")) {
+                tags.put("type", "survival");
+            }
 
         } finally {
             content.setTemporaryMapper(null);
@@ -172,6 +218,7 @@ public class Map {
         }
 
         Vars.state = new GameState();
+        Vars.waves = new Waves();
 
         for(ContentType type : ContentType.values()){
             for(Content content : Vars.content.getBy(type)){
@@ -182,20 +229,20 @@ public class Map {
             }
         }
 
-        try{
-            BufferedImage image = ImageIO.read(getClass().getClassLoader().getResource("sprites/block_colors.png"));
+        try {
+            BufferedImage image = ImageIO.read(Objects.requireNonNull(getClass().getClassLoader().getResource("sprites/block_colors.png")));
 
-            for(Block block : Vars.content.blocks()){
+            for(Block block : Vars.content.blocks()) {
                 block.mapColor.argb8888(image.getRGB(block.id, 0));
-                if(block instanceof OreBlock){
+                if (block instanceof OreBlock) {
                     block.mapColor.set(((OreBlock)block).itemDrop.color);
                 }
             }
-        }catch(Exception e){
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
 
-        world = new World(){
+        world = new World() {
             public Tile tile(int x, int y){
                 return new Tile(x, y);
             }
@@ -208,70 +255,82 @@ public class Map {
         return co.set(rgba).argb8888();
     }
 
-    static class ImageData implements TextureData{
+    static String getPrettyValue(String currentValue, String toAdd) {
+        if (currentValue.equals("")) return toAdd;
+        return currentValue + ", " + toAdd;
+    }
+
+    static boolean overlaps(String[] arr1, String[] arr2) {
+        for (String s : arr1) {
+            if (Arrays.asList(arr2).contains(s)) return true;
+        }
+        return false;
+    }
+
+    static class ImageData implements TextureData {
         final BufferedImage image;
 
-        public ImageData(BufferedImage image){
+        public ImageData(BufferedImage image) {
             this.image = image;
         }
 
         @Override
-        public TextureDataType getType(){
+        public TextureDataType getType() {
             return TextureDataType.Custom;
         }
 
         @Override
-        public boolean isPrepared(){
+        public boolean isPrepared() {
             return false;
         }
 
         @Override
-        public void prepare(){
+        public void prepare() {
 
         }
 
         @Override
-        public Pixmap consumePixmap(){
+        public Pixmap consumePixmap() {
             return null;
         }
 
         @Override
-        public boolean disposePixmap(){
+        public boolean disposePixmap() {
             return false;
         }
 
         @Override
-        public void consumeCustomData(int target){
+        public void consumeCustomData(int target) {
 
         }
 
         @Override
-        public int getWidth(){
+        public int getWidth() {
             return image.getWidth();
         }
 
         @Override
-        public int getHeight(){
+        public int getHeight() {
             return image.getHeight();
         }
 
         @Override
-        public Format getFormat(){
+        public Format getFormat() {
             return Format.rgba8888;
         }
 
         @Override
-        public boolean useMipMaps(){
+        public boolean useMipMaps() {
             return false;
         }
 
         @Override
-        public boolean isManaged(){
+        public boolean isManaged() {
             return false;
         }
     }
 
-    static class ImageRegion extends AtlasRegion{
+    static class ImageRegion extends AtlasRegion {
         final BufferedImage image;
         final int x, y;
 
