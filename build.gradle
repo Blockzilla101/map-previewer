@@ -1,8 +1,7 @@
 apply plugin: 'java'
-apply plugin: 'maven'
 
 project.ext.mainClassName = "maphandler.MapHandler"
-sourceCompatibility = 1.8
+sourceCompatibility = targetCompatibility = 14
 version = '1.0'
 
 sourceSets.main.java.srcDirs = ["src/"]
@@ -20,7 +19,8 @@ allprojects{
 }
 
 ext{
-    mindustryVersion = 'v104.6'
+    mindustryVersion = 'v114.1'
+    arcHash = 'f1feed86eb643c2e5dbcee013b1b186644b5cf98'
 }
 
 task run(dependsOn: classes, type: JavaExec){
@@ -42,6 +42,6 @@ task dist(type: Jar){
 }
 
 dependencies{
-    compile "com.github.Anuken.Arc:arc-core:$mindustryVersion"
+    compile "com.github.Anuken.Arc:arc-core:$arcHash"
     compile "com.github.Anuken.Mindustry:core:$mindustryVersion"
 }

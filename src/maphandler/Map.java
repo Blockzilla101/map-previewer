@@ -1,330 +1,281 @@
 package maphandler;
 
+import arc.*;
 import arc.files.*;
+import arc.graphics.Color;
 import arc.graphics.*;
+import arc.graphics.Pixmap.*;
 import arc.graphics.g2d.*;
+import arc.graphics.g2d.TextureAtlas.*;
+import arc.graphics.g2d.TextureAtlas.TextureAtlasData.*;
+import arc.math.*;
 import arc.struct.*;
-import arc.util.*;
+import arc.util.io.*;
+import arc.util.serialization.*;
+import mindustry.*;
+import mindustry.content.*;
+import mindustry.core.*;
+import mindustry.ctype.*;
+import mindustry.entities.units.*;
+import mindustry.game.*;
+import mindustry.io.*;
+import mindustry.world.*;
+import mindustry.world.blocks.environment.*;
 
-import java.awt.Graphics2D;
-import java.awt.image.BufferedImage;
-import java.io.DataInput;
-import java.io.DataInputStream;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.URL;
-import java.util.Arrays;
-import java.util.zip.InflaterInputStream;
-import javax.imageio.ImageIO;
-
-import arc.util.io.CounterInputStream;
-import maphandler.Saves.*;
-import mindustry.content.Blocks;
-import mindustry.core.GameState;
-import mindustry.game.Stats;
-import mindustry.io.MapIO;
-import mindustry.io.SaveIO;
-import mindustry.maps.Maps;
-import mindustry.world.Block;
-import mindustry.world.Tile;
-import mindustry.world.blocks.OreBlock;
+import javax.imageio.*;
+import java.awt.*;
+import java.awt.geom.*;
+import java.awt.image.*;
+import java.io.*;
+import java.util.zip.*;
 
 import static mindustry.Vars.*;
 
 public class Map {
-    public static final byte[] mapHeader = new byte[] { 77, 83, 65, 86 };
-    public static final IntMap<SaveVersion> versions = new IntMap();
-    public static final Array<SaveVersion> versionArray = Array.with(
-        new Save1(),
-        new Save2(),
-        new Save3()
-    );
-  
-    public String name;
-    public String author;
-    public String description;
-    public int version;
-    public int build;
+    private boolean inited = false;
+
+    public static final byte[] mapHeader = {77, 83, 65, 86};
+    public static final String schemHeader = "bXNjaAB";
+
+    public String name, author, description;
+    public ObjectMap<String, String> tags = new ObjectMap<>();
+    public ObjectMap<String, String> stuffs = new ObjectMap<>();
     public BufferedImage image;
-    public Tile[][] tiles;
-    public StringMap stuffs = new StringMap();
-  
-    public int width;
-  
-    public int height;
-  
-    public GameState state;
-  
-    public Stats stats;
-    public Array<String> mods;
 
-    Graphics2D currentGraphics;
-    BufferedImage currentImage;
-  
-    static {
-        for (SaveVersion version : versionArray) {
-            versions.put(version.version, version);
-        }
+    Color co = new Color();
+
+    public Map() {
+        if (!inited) init();
     }
 
-    Map() { }
-    Map(String path) throws IOException {
-        Map map = parseMap(path);
-    
-        this.name = map.name;
-        this.author = map.author;
-        this.description = map.description;
-    
-        this.stuffs = map.stuffs;
-    
-        this.image = map.image;
-        this.tiles = map.tiles;
-        this.width = map.width;
-        this.height = map.height;
-    
-        this.state = map.state;
-        this.stats = map.stats;
-        this.mods = map.mods;
-    
-        this.version = map.version;
-    }
-  
-    public static Map parseMap(String path) throws IOException {
-        Map out = new Map();
-        Fi file = Fi.get(path);
-    
-        mindustry.Vars.maps = new Maps();
-    
-        if (!file.exists()) throw new IOException(path + " not found");
-        if (!SaveIO.isSaveValid(file)) throw new IOException(path + " invalid save file");
-    
-        try(InputStream in = file.read(); InflaterInputStream inf = new InflaterInputStream(in); CounterInputStream counter = new CounterInputStream(in); DataInputStream stream = new DataInputStream(inf)) {
-            readHeader(stream);
+    public Map(String path) throws IOException {
+        if (!Fi.get(path).exists()) throw new IOException("Map doesnt exist");
+        try(InputStream ifs = new InflaterInputStream(Fi.get(path).read()); CounterInputStream counter = new CounterInputStream(ifs); DataInputStream stream = new DataInputStream(counter)){
+            if (!inited) init();
+
+            SaveIO.readHeader(stream);
             int version = stream.readInt();
-            Context context = new Context();
-      
-            SaveVersion ver = versions.get(version);
-            ver.read(stream, counter, context);
-      
-            out.tiles = context.tiles;
-            out.width = context.width;
-            out.height = context.height;
-      
-            out.name = context.name;
-            out.description = context.description;
-            out.author = context.author;
-      
-            out.build = context.build;
-            out.state = context.state;
-            out.stats = context.stats;
-            out.mods = context.mods;
-      
-            out.version = version;
-      
-            out.doRest();
-        }
+            SaveVersion ver = SaveIO.getSaveWriter(version);
+            StringMap[] metaOut = {null};
+            ver.region("meta", stream, counter, in -> metaOut[0] = ver.readStringMap(in));
 
-        return out;
-    }
-  
-    void doRest() {
-        try {
-            BufferedImage image = ImageIO.read(getClass().getClassLoader().getResource("sprites/block_colors.png"));
-      
-            for (Block block : content.blocks()) {
-                block.color.argb8888(image.getRGB(block.id, 0));
-                if (block instanceof OreBlock) {
-                    block.color.set(((OreBlock)block).itemDrop.color);
+            StringMap meta = metaOut[0];
+
+            name = meta.get("name", "Unknown");
+            author = meta.get("author");
+            description = meta.get("description");
+            tags = meta;
+
+            int width = meta.getInt("width"), height = meta.getInt("height");
+
+            var floors = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+            var walls = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+            var fgraphics = floors.createGraphics();
+            var jcolor = new java.awt.Color(0, 0, 0, 64);
+            int black = 255;
+            CachedTile tile = new CachedTile(){
+                @Override
+                public void setBlock(Block type){
+                    super.setBlock(type);
+
+                    int c = MapIO.colorFor(block(), Blocks.air, Blocks.air, team());
+                    if(c != black && c != 0){
+                        walls.setRGB(x, floors.getHeight() - 1 - y, conv(c));
+                        fgraphics.setColor(jcolor);
+                        fgraphics.drawRect(x, floors.getHeight() - 1 - y + 1, 1, 1);
+                    }
                 }
-            }
+            };
 
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+            ver.region("content", stream, counter, ver::readContentHeader);
+            ver.region("preview_map", stream, counter, in -> ver.readMap(in, new WorldContext(){
+                @Override public void resize(int width, int height){}
+                @Override public boolean isGenerating(){return false;}
+                @Override public void begin(){
+                    world.setGenerating(true);
+                }
+                @Override public void end(){
+                    world.setGenerating(false);
+                }
+
+                @Override
+                public void onReadBuilding(){
+                    //read team colors
+                    if(tile.build != null){
+                        int c = tile.build.team.color.argb8888();
+                        int size = tile.block().size;
+                        int offsetx = -(size - 1) / 2;
+                        int offsety = -(size - 1) / 2;
+                        for(int dx = 0; dx < size; dx++){
+                            for(int dy = 0; dy < size; dy++){
+                                int drawx = tile.x + dx + offsetx, drawy = tile.y + dy + offsety;
+                                walls.setRGB(drawx, floors.getHeight() - 1 - drawy, c);
+                            }
+                        }
+                    }
+                }
+
+                @Override
+                public Tile tile(int index){
+                    tile.x = (short)(index % width);
+                    tile.y = (short)(index / width);
+                    return tile;
+                }
+
+                @Override
+                public Tile create(int x, int y, int floorID, int overlayID, int wallID){
+                    if(overlayID != 0){
+                        floors.setRGB(x, floors.getHeight() - 1 - y, conv(MapIO.colorFor(Blocks.air, Blocks.air, content.block(overlayID), Team.derelict)));
+                    }else{
+                        floors.setRGB(x, floors.getHeight() - 1 - y, conv(MapIO.colorFor(Blocks.air, content.block(floorID), Blocks.air, Team.derelict)));
+                    }
+                    return tile;
+                }
+            }));
+
+            fgraphics.drawImage(walls, 0, 0, null);
+            fgraphics.dispose();
+
+            image = floors;
+
+        } finally {
+            content.setTemporaryMapper(null);
         }
-    
-        StringMap stuffs = new StringMap();
-        BufferedImage img = new BufferedImage(this.tiles.length, (this.tiles[0]).length, 2);
-    
-        stuffs.put("playableTeams", this.state.rules.defaultTeam.toString());
-    
-        for (int i = 0; i < this.width * this.height; i++) {
-            int x = i % this.width, y = i / this.width;
-            Tile tile = this.tiles[x][y];
-            img.setRGB(x, img.getHeight() - 1 - y, Tmp.c1.set(MapIO.colorFor(tile.floor(), tile.block(), tile.overlay(), tile.getTeam())).argb8888());
-
-      
-            if (tile.block() == Blocks.coreShard || tile.block() == Blocks.coreFoundation || tile.block() == Blocks.coreNucleus) {
-                if (!stuffs.get("cores", "").contains(tile.getTeam().toString())) stuffs.put("cores", getPrettyValue(stuffs.get("cores", ""), tile.getTeam().toString()));
-
-            } else if (tile.block() == Blocks.repairPoint) {
-                if (!stuffs.get("playableTeams", "").contains(tile.getTeam().toString())) stuffs.put("playableTeams", getPrettyValue(stuffs.get("playableTeams", ""), tile.getTeam().toString()));
-
-            } else if (tile.block() == Blocks.itemSource || tile.block() == Blocks.liquidSource || tile.block() == Blocks.itemVoid || tile.block() == Blocks.liquidVoid) {
-                if (!stuffs.get("sandboxBlockTeams", "").contains(tile.getTeam().toString())) stuffs.put("sandboxBlockTeams", getPrettyValue(stuffs.get("sandboxBlockTeams", ""), tile.getTeam().toString()));
-
-            } else if (tile.overlay() == Blocks.spawn) {
-                if (!stuffs.get("spawns", "").contains(tile.getTeam().toString())) stuffs.put("spawns", getPrettyValue(stuffs.get("spawns", ""), tile.getTeam().toString()));
-
-            }
-        }
-
-        stuffs.put("cores", stuffs.get("cores", "None"));
-        stuffs.put("spawns", stuffs.get("spawns", "None"));
-        stuffs.put("sandboxBlockTeams", stuffs.get("sandboxBlockTeams", "None"));
-    
-        stuffs.put("type", "unknown");
-    
-        String[] cores = stuffs.get("cores").split(", ");
-        String[] spawns = stuffs.get("spawns").split(", ");
-        String[] playableTeams = stuffs.get("playableTeams").split(", ");
-        String[] sandboxBlockTeams = stuffs.get("sandboxBlockTeams").split(", ");
-    
-        if (overlaps(playableTeams, sandboxBlockTeams) || this.state.rules.infiniteResources) {
-            stuffs.put("type", "sandbox");
-        } else if (!cores[0].equals("None") && cores.length == playableTeams.length && spawns[0].equals("None")) {
-            stuffs.put("type", "pvp");
-        } else if (!cores[0].equals("None") && cores.length > 1 && playableTeams.length == 1) {
-            stuffs.put("type", "attack");
-        } else if (!cores[0].equals("None") && !spawns[0].equals("None")) {
-            stuffs.put("type", "survival");
-        }
-    
-        this.image = img;
-        this.stuffs = stuffs;
     }
-  
-    static BufferedImage tint(BufferedImage image, Color color) {
+
+    private BufferedImage tint(BufferedImage image, Color color){
         BufferedImage copy = new BufferedImage(image.getWidth(), image.getHeight(), image.getType());
         Color tmp = new Color();
-
-        for (int x = 0; x < copy.getWidth(); x++) {
-            for (int y = 0; y < copy.getHeight(); y++) {
+        for(int x = 0; x < copy.getWidth(); x++){
+            for(int y = 0; y < copy.getHeight(); y++){
                 int argb = image.getRGB(x, y);
-
                 tmp.argb8888(argb);
                 tmp.mul(color);
-
                 copy.setRGB(x, y, tmp.argb8888());
             }
         }
-
         return copy;
     }
-  
-    static void readHeader(DataInput input) throws IOException {
-        byte[] bytes = new byte[mapHeader.length];
 
-        input.readFully(bytes);
+    private void init() {
+        Version.enabled = false;
+        Vars.content = new ContentLoader();
+        Vars.content.createBaseContent();
 
-        if (!Arrays.equals(bytes, mapHeader)) {
-            throw new IOException("Incorrect header! Expecting: " + Arrays.toString(mapHeader) + "; Actual: " + Arrays.toString(bytes));
+        for(ContentType type : ContentType.values()){
+            for(Content content : Vars.content.getBy(type)){
+                try{
+                    content.init();
+                }catch(Throwable ignored){
+                }
+            }
         }
-    }
-  
-    public String toString(String start) {
-        return
-           start + "author=" + this.author + "\n" +
-           start + "description=" + this.description + "\n" +
-           start + "name=" + this.name + "\n" +
-           start + "width=" + this.width + "\n" +
-           start + "height=" + this.height + "\n" +
-           start + "mods=" + arrayToJson(this.mods);
-    }
 
-    public String toString() {
-        return toString("");
-    }
-  
-    static String getPrettyValue(String currentValue, String toAdd) {
-        if (currentValue.equals("")) return toAdd;
-        return currentValue + ", " + toAdd;
-    }
-  
-    static boolean overlaps(String[] arr1, String[] arr2) {
-        for (String s : arr1) {
-            if (Arrays.asList(arr2).contains(s)) return true;
+        Vars.state = new GameState();
+
+        for(ContentType type : ContentType.values()){
+            for(Content content : Vars.content.getBy(type)){
+                try{
+                    content.load();
+                }catch(Throwable ignored){
+                }
+            }
         }
-        return false;
-    }
-  
-    static String arrayToJson(Array<String> arr) {
-        StringBuilder json = new StringBuilder();
 
-        for (int i = 0; i < arr.size; i++) {
-            json.append("\"").append(arr.get(i).replace("\"", "\\\"")).append("\"");
-            if (i != arr.size - 1) json.append(", ");
+        try{
+            BufferedImage image = ImageIO.read(getClass().getClassLoader().getResource("sprites/block_colors.png"));
 
+            for(Block block : Vars.content.blocks()){
+                block.mapColor.argb8888(image.getRGB(block.id, 0));
+                if(block instanceof OreBlock){
+                    block.mapColor.set(((OreBlock)block).itemDrop.color);
+                }
+            }
+        }catch(Exception e){
+            throw new RuntimeException(e);
         }
-        return "[" + json.toString() + "]";
-    }
-  
 
-    static class ImageData implements TextureData {
+        world = new World(){
+            public Tile tile(int x, int y){
+                return new Tile(x, y);
+            }
+        };
+
+        inited = true;
+    }
+
+    int conv(int rgba){
+        return co.set(rgba).argb8888();
+    }
+
+    static class ImageData implements TextureData{
         final BufferedImage image;
 
-        public ImageData(BufferedImage image) {
+        public ImageData(BufferedImage image){
             this.image = image;
         }
 
-        public TextureData.TextureDataType getType() {
-            return TextureData.TextureDataType.Custom;
+        @Override
+        public TextureDataType getType(){
+            return TextureDataType.Custom;
         }
 
-    
-        public boolean isPrepared() {
+        @Override
+        public boolean isPrepared(){
             return false;
         }
 
-        public void prepare() {
+        @Override
+        public void prepare(){
 
         }
 
-    
-        public Pixmap consumePixmap() {
+        @Override
+        public Pixmap consumePixmap(){
             return null;
         }
 
-    
-        public boolean disposePixmap() {
+        @Override
+        public boolean disposePixmap(){
             return false;
         }
 
-        public void consumeCustomData(int target) {
+        @Override
+        public void consumeCustomData(int target){
 
         }
 
-        public int getWidth() {
-            return this.image.getWidth();
+        @Override
+        public int getWidth(){
+            return image.getWidth();
         }
 
-    
-        public int getHeight() {
-            return this.image.getHeight();
+        @Override
+        public int getHeight(){
+            return image.getHeight();
         }
 
-    
-        public Pixmap.Format getFormat() {
-            return Pixmap.Format.RGBA8888;
+        @Override
+        public Format getFormat(){
+            return Format.rgba8888;
         }
 
-    
-        public boolean useMipMaps() {
+        @Override
+        public boolean useMipMaps(){
             return false;
         }
 
-    
-        public boolean isManaged() {
+        @Override
+        public boolean isManaged(){
             return false;
         }
     }
-  
-    static class ImageRegion extends TextureAtlas.AtlasRegion {
+
+    static class ImageRegion extends AtlasRegion{
         final BufferedImage image;
-        final int x;
-        final int y;
-    
-        public ImageRegion(String name, Texture texture, int x, int y, BufferedImage image) {
+        final int x, y;
+
+        public ImageRegion(String name, Texture texture, int x, int y, BufferedImage image){
             super(texture, x, y, image.getWidth(), image.getHeight());
             this.name = name;
             this.image = image;

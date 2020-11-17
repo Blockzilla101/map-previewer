@@ -16,9 +16,8 @@ public class MapHandler {
             boolean makeScreenshot = true;
             if (args.length >= 2) {
                 String arg = args[1];
-                if (arg.equals("true") || arg.equals("1")) {
-                    makeScreenshot = true;
-                } else if (arg.equals("false") || arg.equals("0")) {
+                if (arg.equals("false") || arg.equals("0")) {
+                    System.out.println("Wont be generating a screenshot");
                     makeScreenshot = false;
                 } else {
                     System.out.println("Ignoring 2nd argument");
@@ -33,10 +32,10 @@ public class MapHandler {
 
             long end = System.currentTimeMillis();
 
-            System.out.println(map.toString(">"));
-            for (int i = 0; i < map.stuffs.size; i++) {
-                String key = (String)map.stuffs.keys().toArray().get(i);
-                String val = (String)map.stuffs.values().toArray().get(i);
+//            System.out.println(map.toString(">"));
+            for (int i = 0; i < map.tags.size; i++) {
+                String key = map.tags.keys().toSeq().get(i);
+                String val = map.tags.values().toSeq().get(i);
 
                 System.out.println(">" + key + "=" + val);
             }
