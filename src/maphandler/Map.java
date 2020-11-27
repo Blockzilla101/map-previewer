@@ -2,9 +2,6 @@ package maphandler;
 
 import arc.files.*;
 import arc.graphics.Color;
-import arc.graphics.*;
-import arc.graphics.Pixmap.*;
-import arc.graphics.g2d.TextureAtlas.*;
 import arc.struct.*;
 import arc.util.io.*;
 import mindustry.*;
@@ -12,16 +9,14 @@ import mindustry.content.*;
 import mindustry.core.*;
 import mindustry.ctype.*;
 import mindustry.game.*;
-import mindustry.gen.EntityMapping;
-import mindustry.gen.Entityc;
 import mindustry.io.*;
 import mindustry.world.*;
 import mindustry.world.blocks.environment.*;
+import mindustry.world.blocks.storage.*;
 
 import javax.imageio.*;
 import java.awt.image.*;
 import java.io.*;
-import java.util.Arrays;
 import java.util.Objects;
 import java.util.zip.*;
 
@@ -74,15 +69,24 @@ public class Map {
             width = meta.getInt("width");
             height = meta.getInt("height");
 
+            tags.put("blockDamageMultiplier", Float.toString(state.rules.blockDamageMultiplier));
+            tags.put("blockHealthMultiplier", Float.toString(state.rules.blockHealthMultiplier));
+            tags.put("unitDamageMultiplier", Float.toString(state.rules.unitDamageMultiplier));
+            tags.put("unitHealthMultiplier", Float.toString(state.rules.unitHealthMultiplier));
+            tags.put("unitBuildSpeedMultiplier", Float.toString(state.rules.unitBuildSpeedMultiplier));
+            tags.put("waveSpacing", Float.toString(state.rules.waveSpacing));
+
+            tags.put("waveTeam", state.rules.waveTeam.toString());
+            tags.put("defaultTeam", state.rules.defaultTeam.toString());
+
+            Seq<Integer> cores = new Seq<>();
+            Seq<Integer> sandboxTeams = new Seq<>();
+
             var floors = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
             var walls = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
             var fgraphics = floors.createGraphics();
             var jcolor = new java.awt.Color(0, 0, 0, 64);
             int black = 255;
-
-            tags.put("playableTeams", state.rules.defaultTeam.toString());
-            tags.put("saved", meta.get("saved"));
-            tags.put("spawnTeam", state.rules.waveTeam.toString());
 
             CachedTile tile = new CachedTile(){
                 @Override
@@ -111,14 +115,10 @@ public class Map {
 
                 @Override
                 public void onReadBuilding(){
-                    if (tile.block() == Blocks.coreShard || tile.block() == Blocks.coreFoundation || tile.block() == Blocks.coreNucleus) {
-                        if (!tags.get("cores", "").contains(tile.team().toString())) tags.put("cores", getPrettyValue(tags.get("cores", ""), tile.team().toString()));
-
-                    } else if (tile.block() == Blocks.repairPoint) {
-                        if (!tags.get("playableTeams", "").contains(tile.team().toString())) tags.put("playableTeams", getPrettyValue(tags.get("playableTeams", ""), tile.team().toString()));
-
-                    } else if (tile.block() == Blocks.itemSource || tile.block() == Blocks.liquidSource || tile.block() == Blocks.itemVoid || tile.block() == Blocks.liquidVoid) {
-                        if (!tags.get("sandboxBlockTeams", "").contains(tile.team().toString())) tags.put("sandboxBlockTeams", getPrettyValue(tags.get("sandboxBlockTeams", ""), tile.team().toString()));
+                    if (tile.block() instanceof CoreBlock) {
+                        if (!cores.contains(tile.team().id)) cores.add(tile.team().id);
+                    } else if (tile.block() == Blocks.itemSource || tile.block() == Blocks.itemVoid || tile.block() == Blocks.liquidSource || tile.block() == Blocks.liquidVoid || tile.block() == Blocks.powerSource || tile.block() == Blocks.powerVoid) {
+                        if (!sandboxTeams.contains(tile.team().id)) sandboxTeams.add(tile.team().id);
                     }
 
                     //read team colors
@@ -158,49 +158,31 @@ public class Map {
                 }
             }));
 
+            cores.forEach(core -> {
+                if (state.rules.teams.get(Team.get(core)).cheat || state.rules.teams.get(Team.get(core)).infiniteResources) {
+                    if (!sandboxTeams.contains(core)) sandboxTeams.add(core);
+                }
+            });
+
+            Seq<String> tempCores = new Seq<>();
+            Seq<String> tempSandboxTeams = new Seq<>();
+
+            cores.forEach(core -> tempCores.add(Team.get(core).toString()));
+            sandboxTeams.forEach(team -> tempSandboxTeams.add(Team.get(team).toString()));
+
+            tags.put("cores", tempCores.toString(", "));
+//            tags.put("sandboxTeamBlocks", tempSandboxTeams.toString(", "));
+
+            tags.put("gamemode", state.rules.mode().name());
+
             fgraphics.drawImage(walls, 0, 0, null);
             fgraphics.dispose();
 
             image = floors;
 
-            tags.put("cores", tags.get("cores", "None"));
-            tags.put("hasSpawns", tags.get("hasSpawns", "no"));
-            tags.put("sandboxBlockTeams", tags.get("sandboxBlockTeams", "None"));
-
-            tags.put("type", "unknown");
-
-            String[] cores = tags.get("cores").split(", ");
-            String spawns = tags.get("hasSpawns");
-            String[] playableTeams = tags.get("playableTeams").split(", ");
-            String[] sandboxBlockTeams = tags.get("sandboxBlockTeams").split(", ");
-
-            if (overlaps(playableTeams, sandboxBlockTeams) || this.state.rules.infiniteResources) {
-                tags.put("type", "sandbox");
-            } else if (!cores[0].equals("None") && cores.length == playableTeams.length && spawns.equals("no") && cores.length != 1) {
-                tags.put("type", "pvp");
-            } else if (!cores[0].equals("None") && cores.length > 1 && playableTeams.length == 1) {
-                tags.put("type", "attack");
-            } else if (!cores[0].equals("None") && !spawns.equals("yes")) {
-                tags.put("type", "survival");
-            }
-
         } finally {
             content.setTemporaryMapper(null);
         }
-    }
-
-    private BufferedImage tint(BufferedImage image, Color color){
-        BufferedImage copy = new BufferedImage(image.getWidth(), image.getHeight(), image.getType());
-        Color tmp = new Color();
-        for(int x = 0; x < copy.getWidth(); x++){
-            for(int y = 0; y < copy.getHeight(); y++){
-                int argb = image.getRGB(x, y);
-                tmp.argb8888(argb);
-                tmp.mul(color);
-                copy.setRGB(x, y, tmp.argb8888());
-            }
-        }
-        return copy;
     }
 
     private void init() {
@@ -255,91 +237,15 @@ public class Map {
         return co.set(rgba).argb8888();
     }
 
-    static String getPrettyValue(String currentValue, String toAdd) {
-        if (currentValue.equals("")) return toAdd;
-        return currentValue + ", " + toAdd;
-    }
-
-    static boolean overlaps(String[] arr1, String[] arr2) {
-        for (String s : arr1) {
-            if (Arrays.asList(arr2).contains(s)) return true;
-        }
-        return false;
-    }
-
-    static class ImageData implements TextureData {
-        final BufferedImage image;
-
-        public ImageData(BufferedImage image) {
-            this.image = image;
-        }
-
-        @Override
-        public TextureDataType getType() {
-            return TextureDataType.Custom;
-        }
-
-        @Override
-        public boolean isPrepared() {
-            return false;
-        }
-
-        @Override
-        public void prepare() {
-
-        }
-
-        @Override
-        public Pixmap consumePixmap() {
-            return null;
-        }
-
-        @Override
-        public boolean disposePixmap() {
-            return false;
-        }
-
-        @Override
-        public void consumeCustomData(int target) {
-
-        }
-
-        @Override
-        public int getWidth() {
-            return image.getWidth();
-        }
-
-        @Override
-        public int getHeight() {
-            return image.getHeight();
-        }
-
-        @Override
-        public Format getFormat() {
-            return Format.rgba8888;
-        }
-
-        @Override
-        public boolean useMipMaps() {
-            return false;
-        }
-
-        @Override
-        public boolean isManaged() {
-            return false;
-        }
-    }
-
-    static class ImageRegion extends AtlasRegion {
-        final BufferedImage image;
-        final int x, y;
-
-        public ImageRegion(String name, Texture texture, int x, int y, BufferedImage image){
-            super(texture, x, y, image.getWidth(), image.getHeight());
-            this.name = name;
-            this.image = image;
-            this.x = x;
-            this.y = y;
-        }
-    }
+//    static String getPrettyValue(String currentValue, String toAdd) {
+//        if (currentValue.equals("")) return toAdd;
+//        return currentValue + ", " + toAdd;
+//    }
+//
+//    static boolean overlaps(String[] arr1, String[] arr2) {
+//        for (String s : arr1) {
+//            if (Arrays.asList(arr2).contains(s)) return true;
+//        }
+//        return false;
+//    }
 }

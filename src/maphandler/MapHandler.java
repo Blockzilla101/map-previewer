@@ -26,7 +26,7 @@ public class MapHandler {
                 }
             }
 
-            System.out.println("Reading save " + path);
+            System.out.println("Reading save " + path + "\n");
             long start = System.currentTimeMillis();
 
             Map map = new Map(path);
