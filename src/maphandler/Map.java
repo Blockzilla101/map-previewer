@@ -173,7 +173,7 @@ public class Map {
             tags.put("cores", tempCores.toString(", "));
 //            tags.put("sandboxTeamBlocks", tempSandboxTeams.toString(", "));
 
-            tags.put("gamemode", state.rules.mode().name());
+            tags.put("type", state.rules.mode().name());
 
             fgraphics.drawImage(walls, 0, 0, null);
             fgraphics.dispose();

@@ -37,7 +37,14 @@ public class MapHandler {
             System.out.println(">name=" + map.name);
             System.out.println(">description=" + map.description);
             System.out.println(">author=" + map.author);
+
             System.out.println(">build=" + map.lastReadBuild);
+
+            System.out.println(">width=" + map.width);
+            System.out.println(">height=" + map.height);
+
+            System.out.println(">mods=" + arrayToJson(map.mods));
+
             for (int i = 0; i < map.tags.size; i++) {
                 String key = map.tags.keys().toSeq().get(i);
                 String val = map.tags.values().toSeq().get(i);
