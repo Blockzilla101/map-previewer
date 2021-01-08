@@ -2,5 +2,8 @@
 
 ./gradlew dist --no-daemon -q
 
-scp ./build/libs/previewer.jar root@mindustry.nydus.app:/root/Botzilla/previewer.jar
-cp  ./build/libs/previewer.jar ../Botzilla/previewer.jar
+cp  ./build/libs/previewer.jar ../Botzilla/map-previewer.jar
+
+scp ./build/libs/previewer.jar nydus:/root/map-previewer.jar
+ssh nydus cp /root/map-previewer.jar /root/Botzilla/map-previewer.jar
+ssh nydus rm /root/map-previewer.jar
