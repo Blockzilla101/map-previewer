@@ -20,8 +20,8 @@ allprojects{
 }
 
 ext{
-    mindustryVersion = 'v121'
-    arcHash = 'd9f2b846e51e511aa4985c32297f6cdc8552ca87'
+    mindustryHash = 'f188563052a687f5c35465a6034c4d58eb980e30'
+    arcHash = 'c55aa1fe790c50db389225d9a2287b57f71260ff'
 }
 
 task run(dependsOn: classes, type: JavaExec){
@@ -44,5 +44,5 @@ task dist(type: Jar){
 
 dependencies{
     compile "com.github.Anuken.Arc:arc-core:$arcHash"
-    compile "com.github.Anuken.Mindustry:core:$mindustryVersion"
+    compile "com.github.Anuken.Mindustry:core:$mindustryHash"
 }
