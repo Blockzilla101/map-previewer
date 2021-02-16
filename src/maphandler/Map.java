@@ -72,7 +72,6 @@ public class Map {
             tags.put("blockDamageMultiplier", Float.toString(state.rules.blockDamageMultiplier));
             tags.put("blockHealthMultiplier", Float.toString(state.rules.blockHealthMultiplier));
             tags.put("unitDamageMultiplier", Float.toString(state.rules.unitDamageMultiplier));
-            tags.put("unitHealthMultiplier", Float.toString(state.rules.unitHealthMultiplier));
             tags.put("unitBuildSpeedMultiplier", Float.toString(state.rules.unitBuildSpeedMultiplier));
             tags.put("waveSpacing", Float.toString(state.rules.waveSpacing));
 
