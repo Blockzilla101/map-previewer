@@ -1,14 +1,38 @@
 #!/usr/bin/bash
 
+[[ ! -d "../Mindustry/core/assets/sprites" ]] && echo "Sprites not found" && exit 1
+[[ -d "./assets/sprites" ]] && rm -rf "./assets/sprites" && echo "Deleted old sprites"
+
+mkdir "./assets/sprites"
+cp "../Mindustry/core/assets/sprites/block_colors.png" "./assets/sprites"
+echo "Sprites updated"
+
+rm gradle.properties
+
+lastDir=`pwd`
+cd "../Mindustry"
+
+mindHash=`git rev-parse HEAD`
+archHash=`tail -n1 gradle.properties | cut -c 9-`
+
+cd "${lastDir}"
+
+echo "mindustryHash=${mindHash}" >> gradle.properties
+echo "arcHash=${archHash}" >> gradle.properties
+
+echo "Updated hashes"
+
 ./gradlew dist --no-daemon -q
 
-if [[ ! $? == '0' ]]; then
+if [[ $? -ne 0 ]]; then
     echo "Build Failed"
     exit 1
 fi
 
 cp  ./build/libs/previewer.jar ../Botzilla/map-previewer.jar
 
-scp ./build/libs/previewer.jar nydus6:/root/map-previewer.jar
-ssh nydus6 cp /root/map-previewer.jar /opt/botzilla/map-previewer.jar
-ssh nydus6 rm /root/map-previewer.jar
+[[ $# -ne 0 ]] && exit 0
+
+scp ./build/libs/previewer.jar nydus6:/tmp/map-previewer.jar
+ssh nydus6 cp /tmp/map-previewer.jar /opt/botzilla/map-previewer.jar
+ssh nydus6 rm /tmp/map-previewer.jar
