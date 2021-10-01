@@ -33,6 +33,6 @@ cp  ./build/libs/previewer.jar ../Botzilla/map-previewer.jar
 
 [[ $# -ne 0 ]] && exit 0
 
-scp ./build/libs/previewer.jar nydus6:/tmp/map-previewer.jar
-ssh nydus6 cp /tmp/map-previewer.jar /opt/botzilla/map-previewer.jar
-ssh nydus6 rm /tmp/map-previewer.jar
+scp ./build/libs/previewer.jar nydus:/tmp/map-previewer.jar
+ssh nydus cp /tmp/map-previewer.jar /opt/botzilla/map-previewer.jar
+ssh nydus rm /tmp/map-previewer.jar
