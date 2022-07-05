@@ -7,21 +7,6 @@ mkdir "./assets/sprites"
 cp "../Mindustry/core/assets/sprites/block_colors.png" "./assets/sprites"
 echo "Sprites updated"
 
-rm gradle.properties
-
-lastDir=`pwd`
-cd "../Mindustry"
-
-mindHash=`git rev-parse HEAD`
-archHash=`tail -n1 gradle.properties | cut -c 9-`
-
-cd "${lastDir}"
-
-echo "mindustryHash=${mindHash}" >> gradle.properties
-echo "arcHash=${archHash}" >> gradle.properties
-
-echo "Updated hashes"
-
 ./gradlew dist --no-daemon -q
 
 if [[ $? -ne 0 ]]; then
