@@ -11,6 +11,7 @@ import mindustry.world.blocks.environment.*;
 
 import java.awt.image.*;
 import java.io.IOException;
+import java.util.*;
 import javax.imageio.*;
 
 import static mindustry.Vars.*;
@@ -93,7 +94,7 @@ public class MapHandler {
         }
 
         try {
-            BufferedImage image = ImageIO.read(MapHandler.class.getClassLoader().getResource("sprites/block_colors.png"));
+            BufferedImage image = ImageIO.read(Objects.requireNonNull(MapHandler.class.getClassLoader().getResource("sprites/block_colors.png")));
 
             for (Block block : Vars.content.blocks()) {
                 block.mapColor.argb8888(image.getRGB(block.id, 0));

@@ -25,15 +25,19 @@ public class Map {
     public Rules rules;
 
 
-    /** rendered preview of map, null when make preview is false */
+    /**
+     * rendered preview of map, null when make preview is false
+     */
     public BufferedImage image;
-    /** used converting int rbga to byte rgba */
+    /**
+     * used converting int rbga to byte rgba
+     */
     private final Color color = new Color();
 
     @SuppressWarnings("unchecked")
     public Map(String path, boolean makePreview) throws IOException {
         if (!Fi.get(path).exists()) throw new IOException("Map doesn't exist");
-        try(InputStream ifs = new InflaterInputStream(Fi.get(path).read()); CounterInputStream counter = new CounterInputStream(ifs); DataInputStream stream = new DataInputStream(counter)) {
+        try (InputStream ifs = new InflaterInputStream(Fi.get(path).read()); CounterInputStream counter = new CounterInputStream(ifs); DataInputStream stream = new DataInputStream(counter)) {
 
             SaveIO.readHeader(stream);
             int version = stream.readInt();
@@ -63,15 +67,15 @@ public class Map {
             var fgraphics = makePreview ? floors.createGraphics() : null;
             var jcolor = makePreview ? new java.awt.Color(0, 0, 0, 64) : null;
             int black = 255;
-            CachedTile tile = new CachedTile(){
+            CachedTile tile = new CachedTile() {
                 @Override
-                public void setBlock(Block type){
+                public void setBlock(Block type) {
                     super.setBlock(type);
 
                     if (!makePreview) return;
 
                     int c = MapIO.colorFor(block(), Blocks.air, Blocks.air, team());
-                    if(c != black && c != 0){
+                    if (c != black && c != 0) {
                         walls.setRGB(x, floors.getHeight() - 1 - y, conv(c));
                         fgraphics.setColor(jcolor);
                         fgraphics.drawRect(x, floors.getHeight() - 1 - y + 1, 1, 1);
@@ -80,27 +84,37 @@ public class Map {
             };
 
             ver.region("content", stream, counter, ver::readContentHeader);
-            ver.region("preview_map", stream, counter, in -> ver.readMap(in, new WorldContext(){
-                @Override public void resize(int width, int height){}
-                @Override public boolean isGenerating(){return false;}
-                @Override public void begin(){
+            ver.region("preview_map", stream, counter, in -> ver.readMap(in, new WorldContext() {
+                @Override
+                public void resize(int width, int height) {
+                }
+
+                @Override
+                public boolean isGenerating() {
+                    return false;
+                }
+
+                @Override
+                public void begin() {
                     world.setGenerating(true);
                 }
-                @Override public void end(){
+
+                @Override
+                public void end() {
                     world.setGenerating(false);
                 }
 
                 @Override
-                public void onReadBuilding(){
+                public void onReadBuilding() {
                     if (!makePreview) return;
                     //read team colors
-                    if(tile.build != null){
+                    if (tile.build != null) {
                         int c = tile.build.team.color.argb8888();
                         int size = tile.block().size;
                         int offsetx = -(size - 1) / 2;
                         int offsety = -(size - 1) / 2;
-                        for(int dx = 0; dx < size; dx++){
-                            for(int dy = 0; dy < size; dy++){
+                        for (int dx = 0; dx < size; dx++) {
+                            for (int dy = 0; dy < size; dy++) {
                                 int drawx = tile.x + dx + offsetx, drawy = tile.y + dy + offsety;
                                 walls.setRGB(drawx, floors.getHeight() - 1 - drawy, c);
                             }
@@ -109,19 +123,19 @@ public class Map {
                 }
 
                 @Override
-                public Tile tile(int index){
-                    tile.x = (short)(index % width);
-                    tile.y = (short)(index / width);
+                public Tile tile(int index) {
+                    tile.x = (short) (index % width);
+                    tile.y = (short) (index / width);
                     return tile;
                 }
 
                 @Override
-                public Tile create(int x, int y, int floorID, int overlayID, int wallID){
+                public Tile create(int x, int y, int floorID, int overlayID, int wallID) {
                     if (!makePreview) return tile;
 
-                    if(overlayID != 0){
+                    if (overlayID != 0) {
                         floors.setRGB(x, floors.getHeight() - 1 - y, conv(MapIO.colorFor(Blocks.air, Blocks.air, content.block(overlayID), Team.derelict)));
-                    }else{
+                    } else {
                         floors.setRGB(x, floors.getHeight() - 1 - y, conv(MapIO.colorFor(Blocks.air, content.block(floorID), Blocks.air, Team.derelict)));
                     }
                     return tile;
@@ -135,7 +149,7 @@ public class Map {
 
             image = floors;
 
-        }finally{
+        } finally {
             content.setTemporaryMapper(null);
         }
     }
@@ -150,7 +164,7 @@ public class Map {
         return obj;
     }
 
-    int conv(int rgba){
+    int conv(int rgba) {
         return color.set(rgba).argb8888();
     }
 }
