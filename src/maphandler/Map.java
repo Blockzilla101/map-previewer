@@ -52,6 +52,8 @@ public class Map {
             height = meta.getInt("height");
 
             mods = JsonIO.read(Seq.class, meta.get("mods", "[]"));
+            if (mods.size > 0) throw new IOException("Map has mods");
+
             build = meta.getInt("build", -1);
             rules = JsonIO.read(Rules.class, meta.get("rules"));
             playerTeam = Team.get(meta.getInt("playerTeam", 0));

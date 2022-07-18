@@ -50,6 +50,8 @@ public class MapHandler {
 
                     if (e.getMessage().equals("Map doesn't exist")) {
                         error.addProperty("code", MapPreviewErrorCodes.InvalidMap.ordinal());
+                    } else if (e.getMessage().equals("Map has mods")) {
+                        error.addProperty("code", MapPreviewErrorCodes.HasMods.ordinal());
                     } else {
                         error.addProperty("code", MapPreviewErrorCodes.Other.ordinal());
                     }
