@@ -1,20 +1,11 @@
 #!/usr/bin/bash
 
-[[ ! -d "../Mindustry/core/assets/sprites" ]] && echo "Sprites not found" && exit 1
-[[ -d "./assets/sprites" ]] && rm -rf "./assets/sprites" && echo "Deleted old sprites"
-
-mkdir "./assets/sprites"
-cp "../Mindustry/core/assets/sprites/block_colors.png" "./assets/sprites"
-echo "Sprites updated"
-
 ./gradlew dist --no-daemon -q
 
 if [[ $? -ne 0 ]]; then
     echo "Build Failed"
     exit 1
 fi
-
-# cp  ./build/libs/previewer.jar ../Botzilla/map-previewer.jar
 
 [[ $# -ne 0 ]] && exit 0
 

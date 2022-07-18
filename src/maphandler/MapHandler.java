@@ -1,78 +1,118 @@
 package maphandler;
 
-import arc.struct.Seq;
+import arc.files.Fi;
+import com.google.gson.*;
+import mindustry.Vars;
+import mindustry.core.*;
+import mindustry.ctype.*;
+import mindustry.game.*;
+import mindustry.world.*;
+import mindustry.world.blocks.environment.*;
 
-import java.io.File;
-import java.util.concurrent.TimeUnit;
-import javax.imageio.ImageIO;
+import java.awt.image.*;
+import java.io.IOException;
+import javax.imageio.*;
+
+import static mindustry.Vars.*;
 
 public class MapHandler {
+    static Gson gson = new GsonBuilder().disableHtmlEscaping().create();
+
     public static void main(String[] args) {
-        if (args.length == 0) {
-            System.out.println("A map file needs to be specified");
-            System.exit(1);
-        }
+        init();
 
         try {
-            String path = args[0];
-            boolean makeScreenshot = true;
-            if (args.length >= 2) {
-                String arg = args[1];
-                if (arg.equals("false") || arg.equals("0")) {
-                    System.out.println("Wont be generating a screenshot");
-                    makeScreenshot = false;
-                } else {
-                    System.out.println("Ignoring 2nd argument");
+            var mapOptions = gson.fromJson(Fi.get(args[0]).reader(), JsonArray.class);
+            var previewed = new JsonArray();
+
+            mapOptions.forEach(mapOption -> {
+                var mapPath = mapOption.getAsJsonObject().get("mapPath").getAsString();
+                String previewPath = null;
+                if (mapOption.getAsJsonObject().get("previewPath") != null) {
+                    previewPath = mapOption.getAsJsonObject().get("previewPath").getAsString();
                 }
-            }
 
-            System.out.println("Reading save " + path + "\n");
-            long start = System.currentTimeMillis();
+                try {
+                    var preview = new Map(mapPath, previewPath != null);
+                    var previewData = preview.toJson();
 
-            Map map = new Map(path);
-            if (makeScreenshot) ImageIO.write(map.image, "png", new File(path.replaceAll("\\.msav$", ".png")));
+                    if (previewPath != null) {
+                        ImageIO.write(preview.image, "png", Fi.get(previewPath).write());
+                        previewData.addProperty("previewPath", previewPath);
+                    }
 
-            long end = System.currentTimeMillis();
+                    previewed.add(previewData);
 
-            System.out.println(">name=" + map.name);
-            System.out.println(">description=" + map.description);
-            System.out.println(">author=" + map.author);
+                } catch (IOException e) {
+                    var error = new JsonObject();
+                    error.addProperty("error", e.getMessage());
+                    error.addProperty("mapPath", mapPath);
 
-            System.out.println(">build=" + map.lastReadBuild);
+                    if (e.getMessage().equals("Map doesn't exist")) {
+                        error.addProperty("code", MapPreviewErrorCodes.InvalidMap.ordinal());
+                    } else {
+                        error.addProperty("code", MapPreviewErrorCodes.Other.ordinal());
+                    }
 
-            System.out.println(">width=" + map.width);
-            System.out.println(">height=" + map.height);
+                    previewed.add(error);
+                }
+            });
 
-            System.out.println(">mods=" + arrayToJson(map.mods));
-
-            for (int i = 0; i < map.tags.size; i++) {
-                String key = map.tags.keys().toSeq().get(i);
-                String val = map.tags.values().toSeq().get(i);
-
-                System.out.println(">" + key + "=" + val);
-            }
-
-            System.out.println();
-            long elapsed = end - start;
-            System.out.printf("Took %d.%ds%n",
-                TimeUnit.MILLISECONDS.toSeconds(elapsed),
-                elapsed - TimeUnit.SECONDS.toMillis(TimeUnit.MILLISECONDS.toSeconds(elapsed))
-            );
-
-        } catch (Exception exception) {
-            exception.printStackTrace();
-            System.exit(1);
+            System.out.println(gson.toJson(previewed));
+        } catch (JsonSyntaxException e) {
+            throw new RuntimeException(e);
         }
     }
 
-    static String arrayToJson(Seq<String> arr) {
-        StringBuilder json = new StringBuilder();
+    static void init() {
+        Version.enabled = false;
+        Vars.content = new ContentLoader();
+        Vars.content.createBaseContent();
 
-        for (int i = 0; i < arr.size; i++) {
-            json.append("\"").append(arr.get(i).replace("\"", "\\\"")).append("\"");
-            if (i != arr.size - 1) json.append(", ");
-
+        for (ContentType type : ContentType.values()) {
+            for (Content content : Vars.content.getBy(type)) {
+                try {
+                    content.init();
+                } catch (Throwable ignored) {
+                }
+            }
         }
-        return "[" + json.toString() + "]";
+
+        Vars.state = new GameState();
+        Vars.waves = new Waves();
+
+        for (ContentType type : ContentType.values()) {
+            for (Content content : Vars.content.getBy(type)) {
+                try {
+                    content.load();
+                } catch (Throwable ignored) {
+                }
+            }
+        }
+
+        try {
+            BufferedImage image = ImageIO.read(MapHandler.class.getClassLoader().getResource("sprites/block_colors.png"));
+
+            for (Block block : Vars.content.blocks()) {
+                block.mapColor.argb8888(image.getRGB(block.id, 0));
+                if (block instanceof OreBlock) {
+                    block.mapColor.set(block.itemDrop.color);
+                }
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        world = new World() {
+            public Tile tile(int x, int y) {
+                return new Tile(x, y);
+            }
+        };
+    }
+
+    enum MapPreviewErrorCodes {
+        InvalidMap,
+        HasMods,
+        Other,
     }
 }
