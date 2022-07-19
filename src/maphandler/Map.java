@@ -2,10 +2,8 @@ package maphandler;
 
 import arc.files.*;
 import arc.graphics.Color;
-import arc.math.geom.Point2;
 import arc.struct.*;
 import arc.util.io.*;
-import mindustry.Vars;
 import mindustry.content.*;
 import mindustry.game.*;
 import mindustry.io.*;
@@ -15,7 +13,6 @@ import mindustry.world.blocks.storage.CoreBlock;
 
 import java.awt.image.*;
 import java.io.*;
-import java.util.HashMap;
 import java.util.zip.*;
 
 import static mindustry.Vars.*;
@@ -200,6 +197,15 @@ public class Map {
         obj.addProperty("width", width);
         obj.addProperty("height", height);
         obj.addProperty("version", build);
+
+        if (this.rules.env == Planets.serpulo.defaultEnv) {
+            obj.addProperty("env", MapEnv.serpulo.ordinal());
+        } else if (this.rules.env == Planets.erekir.defaultEnv) {
+            obj.addProperty("env", MapEnv.erekir.ordinal());
+        } else if (this.rules.env == defaultEnv) {
+            obj.addProperty("env", MapEnv.any.ordinal());
+        }
+
         obj.add("worldProcessorLocations", processorLocations);
         obj.add("cores", cores);
 
@@ -234,13 +240,9 @@ public class Map {
         return color.set(rgba).argb8888();
     }
 
-    private static class JsonCoreBlock {
-        public String team;
-        public Point2 position;
-
-        public JsonCoreBlock(Team team, int x, int y) {
-            this.team = team.name;
-            this.position = new Point2(x, y);
-        }
+    public enum MapEnv {
+        serpulo,
+        erekir,
+        any
     }
 }
