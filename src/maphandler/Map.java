@@ -2,16 +2,20 @@ package maphandler;
 
 import arc.files.*;
 import arc.graphics.Color;
+import arc.math.geom.Point2;
 import arc.struct.*;
 import arc.util.io.*;
+import mindustry.Vars;
 import mindustry.content.*;
 import mindustry.game.*;
 import mindustry.io.*;
 import mindustry.world.*;
 import com.google.gson.*;
+import mindustry.world.blocks.storage.CoreBlock;
 
 import java.awt.image.*;
 import java.io.*;
+import java.util.HashMap;
 import java.util.zip.*;
 
 import static mindustry.Vars.*;
@@ -23,7 +27,9 @@ public class Map {
     public Team playerTeam;
     public Seq<String> mods;
     public Rules rules;
-
+    public JsonArray processorLocations = new JsonArray();
+    public JsonObject cores = new JsonObject();
+    public JsonArray spawns = new JsonArray();
 
     /**
      * rendered preview of map, null when make preview is false
@@ -106,6 +112,31 @@ public class Map {
 
                 @Override
                 public void onReadBuilding() {
+                    if (tile.build != null) {
+                        if (tile.block() instanceof CoreBlock) {
+                            if (!cores.has(tile.build.team.name)) {
+                                cores.add(tile.build.team.name, new JsonArray());
+                            }
+
+                            var core = new JsonObject();
+                            core.addProperty("team", tile.build.team.name);
+
+                            var pos = new JsonObject();
+                            pos.addProperty("x", tile.x);
+                            pos.addProperty("y", tile.y);
+                            core.add("position", pos);
+
+                            cores.get(tile.build.team.name).getAsJsonArray().add(pos);
+                        }
+
+                        if (tile.block().equals(Blocks.worldProcessor)) {
+                            var pos = new JsonObject();
+                            pos.addProperty("x", tile.x);
+                            pos.addProperty("y", tile.  y);
+                            processorLocations.add(pos);
+                        }
+                    }
+
                     if (!makePreview) return;
                     //read team colors
                     if (tile.build != null) {
@@ -131,6 +162,13 @@ public class Map {
 
                 @Override
                 public Tile create(int x, int y, int floorID, int overlayID, int wallID) {
+                    if (overlayID == Blocks.spawn.id) {
+                        var pos = new JsonObject();
+                        pos.addProperty("x", x);
+                        pos.addProperty("y", y);
+                        spawns.add(pos);
+                    }
+
                     if (!makePreview) return tile;
 
                     if (overlayID != 0) {
@@ -161,10 +199,48 @@ public class Map {
         obj.addProperty("author", author == null || author.equals("") ? null : author);
         obj.addProperty("width", width);
         obj.addProperty("height", height);
+        obj.addProperty("version", build);
+        obj.add("worldProcessorLocations", processorLocations);
+        obj.add("cores", cores);
+
+        var rules = new JsonObject();
+
+        rules.addProperty("sandbox", this.rules.infiniteResources);
+        rules.addProperty("attack", this.rules.attackMode);
+        rules.addProperty("pvp", this.rules.pvp);
+        rules.addProperty("hasWeather", this.rules.weather.size > 0);
+        rules.addProperty("hasLighting", this.rules.lighting);
+        rules.addProperty("hasWaves", this.rules.waves);
+        rules.addProperty("hasUnitAmmo", this.rules.unitAmmo);
+
+        var bannedBlocks = new JsonArray();
+        var bannedUnits = new JsonArray();
+        var loadout = new JsonObject();
+
+        this.rules.bannedBlocks.each(block -> bannedBlocks.add(block.name));
+        this.rules.bannedUnits.each(unit -> bannedUnits.add(unit.name));
+        this.rules.loadout.each(item -> loadout.addProperty(item.item.name, item.amount));
+
+        rules.add("bannedBlocks", bannedBlocks);
+        rules.add("bannedUnits", bannedUnits);
+        rules.add("spawns", spawns);
+        rules.add("loadout", loadout);
+        obj.add("rules", rules);
+
         return obj;
     }
 
     int conv(int rgba) {
         return color.set(rgba).argb8888();
+    }
+
+    private static class JsonCoreBlock {
+        public String team;
+        public Point2 position;
+
+        public JsonCoreBlock(Team team, int x, int y) {
+            this.team = team.name;
+            this.position = new Point2(x, y);
+        }
     }
 }
