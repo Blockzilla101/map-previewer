@@ -36,6 +36,7 @@ public class MapHandler {
                 try {
                     var preview = new Map(mapPath, previewPath != null);
                     var previewData = preview.toJson();
+                    previewData.addProperty("mapPath", mapPath);
 
                     if (previewPath != null) {
                         ImageIO.write(preview.image, "png", Fi.get(previewPath).write());
