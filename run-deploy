@@ -9,6 +9,7 @@ fi
 
 [[ $# -ne 0 ]] && exit 0
 
+scp assets/sprites/block_colors.png nydus:/opt/botzilla/sprites/block_colors.png
 scp ./build/libs/previewer.jar nydus:/tmp/map-previewer.jar
 ssh nydus cp /tmp/map-previewer.jar /opt/botzilla/map-previewer.jar
 ssh nydus rm /tmp/map-previewer.jar
