@@ -86,6 +86,7 @@ public class Map {
             };
 
             ver.readRegion("content", stream, counter, ver::readContentHeader);
+            if(ver.version >= 11) ver.readRegion("content", stream, counter, ver::skipContentPatches);
             ver.readRegion("preview_map", stream, counter, in -> ver.readMap(in, new WorldContext() {
                 @Override
                 public void resize(int width, int height) {

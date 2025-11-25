@@ -15,10 +15,15 @@ allprojects {
     }
 }
 
-task dist(type: Jar) {
-    from files(sourceSets.main.output.classesDirs)
-    from files(sourceSets.main.output.resourcesDir)
-    from { configurations.runtimeClasspath.collect{ it.isDirectory() || !it.name.endsWithAny(".zip", ".jar") ? it : zipTree(it) }}
+tasks.register('dist', Jar) {
+    from files(sourceSets.main.output.classesDirs) {
+        include '**/*'
+    }
+
+    from files(sourceSets.main.output.resourcesDir) {
+        include '**/*.png'
+    }
+    from { configurations.runtimeClasspath.collect { it.isDirectory() || !it.name.endsWithAny(".zip", ".jar") ? it : zipTree(it) } }
 
     archiveFileName = "previewer.jar"
 

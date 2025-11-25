@@ -1,6 +1,7 @@
 package maphandler;
 
 import arc.files.Fi;
+import arc.util.*;
 import com.google.gson.*;
 import mindustry.Vars;
 import mindustry.core.*;
@@ -20,7 +21,10 @@ public class MapHandler {
     static Gson gson = new GsonBuilder().disableHtmlEscaping().create();
 
     public static void main(String[] args) {
+        Log.level = Log.LogLevel.err;
+
         init();
+
 
         try {
             var mapOptions = gson.fromJson(Fi.get(args[0]).reader(), JsonArray.class);
