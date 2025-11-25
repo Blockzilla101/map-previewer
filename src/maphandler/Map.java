@@ -18,6 +18,10 @@ import java.util.zip.*;
 import static mindustry.Vars.*;
 
 public class Map {
+    /**
+     * used converting int rbga to byte rgba
+     */
+    private final Color color = new Color();
     public String author, name, description;
     public int width, height;
     public int build;
@@ -27,15 +31,10 @@ public class Map {
     public JsonArray processorLocations = new JsonArray();
     public JsonObject cores = new JsonObject();
     public JsonArray spawns = new JsonArray();
-
     /**
      * rendered preview of map, null when make preview is false
      */
     public BufferedImage image;
-    /**
-     * used converting int rbga to byte rgba
-     */
-    private final Color color = new Color();
 
     @SuppressWarnings("unchecked")
     public Map(String path, boolean makePreview) throws IOException {
@@ -47,7 +46,7 @@ public class Map {
             SaveVersion ver = SaveIO.getSaveWriter(version);
             StringMap[] metaOut = {null};
 
-            ver.region("meta", stream, counter, in -> metaOut[0] = ver.readStringMap(in));
+            ver.readRegion("meta", stream, counter, in -> metaOut[0] = ver.readStringMap(in));
 
             StringMap meta = metaOut[0];
 
@@ -86,8 +85,8 @@ public class Map {
                 }
             };
 
-            ver.region("content", stream, counter, ver::readContentHeader);
-            ver.region("preview_map", stream, counter, in -> ver.readMap(in, new WorldContext() {
+            ver.readRegion("content", stream, counter, ver::readContentHeader);
+            ver.readRegion("preview_map", stream, counter, in -> ver.readMap(in, new WorldContext() {
                 @Override
                 public void resize(int width, int height) {
                 }
@@ -192,8 +191,8 @@ public class Map {
     public JsonObject toJson() {
         var obj = new JsonObject();
         obj.addProperty("name", name);
-        obj.addProperty("description", description == null || description.equals("") ? null : description);
-        obj.addProperty("author", author == null || author.equals("") ? null : author);
+        obj.addProperty("description", description == null || description.isEmpty() ? null : description);
+        obj.addProperty("author", author == null || author.isEmpty() ? null : author);
         obj.addProperty("width", width);
         obj.addProperty("height", height);
         obj.addProperty("version", build);
